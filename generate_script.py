@@ -193,16 +193,17 @@ class KindleToObsidian:
                 content = chunk
                 folder = None
                 
-                folder_tag_match = re.match(r'^#(\\w+)\\s*\\n', chunk, re.IGNORECASE)
+                # Check for folder routing - allow space after hashtag
+                folder_tag_match = re.match(r'^\\s*#\\s*(\\w+)\\s*\\n', chunk, re.IGNORECASE)
                 if folder_tag_match:
                     folder_key = folder_tag_match.group(1).lower()
                     folder = FOLDER_SHORTCUTS.get(folder_key, folder_key)
-                    content = re.sub(r'^#\\w+\\s*\\n', '', chunk).strip()
+                    content = re.sub(r'^\\s*#\\s*\\w+\\s*\\n', '', chunk).strip()
                 
-                folder_prefix_match = re.match(r'^Folder:\\s*(.+?)(?:\\n|$)', content, re.IGNORECASE)
+                folder_prefix_match = re.match(r'^\\s*Folder:\\s*(.+?)(?:\\n|$)', content, re.IGNORECASE)
                 if folder_prefix_match:
                     folder = folder_prefix_match.group(1).strip()
-                    content = re.sub(r'^Folder:\\s*.+?(?:\\n|$)', '', content, flags=re.IGNORECASE).strip()
+                    content = re.sub(r'^\\s*Folder:\\s*.+?(?:\\n|$)', '', content, flags=re.IGNORECASE).strip()
                 
                 title_match = re.match(r'^Title:\\s*(.+?)(?:\\n|$)', content, re.IGNORECASE)
                 if title_match:
@@ -355,5 +356,5 @@ if __name__ == "__main__":
 with open('kindle_to_obsidian.py', 'w', encoding='utf-8') as f:
     f.write(script_content)
 
-print("✓ Created kindle_to_obsidian.py")
+print("✓ Created kindle_to_obsidian.py (v2 - handles leading whitespace)")
 print("You can now run: python kindle_to_obsidian.py")
