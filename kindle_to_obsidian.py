@@ -187,16 +187,19 @@ class KindleToObsidian:
                 content = chunk
                 folder = None
                 
-                folder_tag_match = re.match(r'^#(\w+)\s*\n', chunk, re.IGNORECASE)
+                # Check for folder routing - allow space after hashtag
+                folder_tag_match = re.match(r'^\s*#\s*(\w+)\s*\n', chunk, re.IGNORECASE)
                 if folder_tag_match:
                     folder_key = folder_tag_match.group(1).lower()
                     folder = FOLDER_SHORTCUTS.get(folder_key, folder_key)
-                    content = re.sub(r'^#\w+\s*\n', '', chunk).strip()
+                    content = re.sub(r'^\s*#\s*\w+\s*\n', '', chunk).strip()
                 
-                folder_prefix_match = re.match(r'^Folder:\s*(.+?)(?:\n|$)', content, re.IGNORECASE)
+                folder_prefix_match = re.match(r'^\s*Folder:\s*(.+?)(?:\n|$)', content, re.IGNORECASE)
                 if folder_prefix_match:
-                    folder = folder_prefix_match.group(1).strip()
-                    content = re.sub(r'^Folder:\s*.+?(?:\n|$)', '', content, flags=re.IGNORECASE).strip()
+                    folder_raw = folder_prefix_match.group(1).strip()
+                    # Check if it's a shortcut first, otherwise use literally
+                    folder = FOLDER_SHORTCUTS.get(folder_raw.lower(), folder_raw)
+                    content = re.sub(r'^\s*Folder:\s*.+?(?:\n|$)', '', content, flags=re.IGNORECASE).strip()
                 
                 title_match = re.match(r'^Title:\s*(.+?)(?:\n|$)', content, re.IGNORECASE)
                 if title_match:
@@ -247,8 +250,10 @@ class KindleToObsidian:
         if folder:
             output_path = self.vault_path / folder
             output_path.mkdir(parents=True, exist_ok=True)
+            print(f"    - Routing to folder: {folder}")
         else:
             output_path = self.default_output_path
+            print(f"    - Using default folder: {OUTPUT_FOLDER}")
         
         title_clean = re.sub(r'[^\w\s-]', '', title)
         title_clean = re.sub(r'\s+', ' ', title_clean).strip()
@@ -266,6 +271,7 @@ class KindleToObsidian:
             counter += 1
         
         filepath.write_text(content, encoding='utf-8')
+        print(f"    - Created: {filepath}")
         return filepath
     
     def process_email(self, message):
