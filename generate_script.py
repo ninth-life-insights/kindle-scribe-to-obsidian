@@ -254,8 +254,10 @@ class KindleToObsidian:
         if folder:
             output_path = self.vault_path / folder
             output_path.mkdir(parents=True, exist_ok=True)
+            print(f"    - Routing to folder: {folder}")
         else:
             output_path = self.default_output_path
+            print(f"    - Using default folder: {OUTPUT_FOLDER}")
         
         title_clean = re.sub(r'[^\\w\\s-]', '', title)
         title_clean = re.sub(r'\\s+', ' ', title_clean).strip()
@@ -273,6 +275,7 @@ class KindleToObsidian:
             counter += 1
         
         filepath.write_text(content, encoding='utf-8')
+        print(f"    - Created: {filepath}")
         return filepath
     
     def process_email(self, message):
