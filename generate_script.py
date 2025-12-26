@@ -202,7 +202,9 @@ class KindleToObsidian:
                 
                 folder_prefix_match = re.match(r'^\\s*Folder:\\s*(.+?)(?:\\n|$)', content, re.IGNORECASE)
                 if folder_prefix_match:
-                    folder = folder_prefix_match.group(1).strip()
+                    folder_raw = folder_prefix_match.group(1).strip()
+                    # Check if it's a shortcut first, otherwise use literally
+                    folder = FOLDER_SHORTCUTS.get(folder_raw.lower(), folder_raw)
                     content = re.sub(r'^\\s*Folder:\\s*.+?(?:\\n|$)', '', content, flags=re.IGNORECASE).strip()
                 
                 title_match = re.match(r'^Title:\\s*(.+?)(?:\\n|$)', content, re.IGNORECASE)
