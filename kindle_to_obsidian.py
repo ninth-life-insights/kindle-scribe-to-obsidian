@@ -26,15 +26,8 @@ from googleapiclient.discovery import build
 # Configuration
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 OBSIDIAN_VAULT_PATH = "C:/Users/Lenovo/Documents/Cat's Mind Garden"
-OUTPUT_FOLDER = "3 - Nonfiction"  # Default folder
+OUTPUT_FOLDER = "3 - Nonfiction"
 PROCESSED_EMAILS_FILE = "processed_kindle_emails.txt"
-
-# Folder routing shortcuts
-FOLDER_SHORTCUTS = {
-    'personal': '1 - Personal',
-    'fiction': '2 - Fiction',
-    'nonfiction': '3 - Nonfiction',
-}
 
 class LinkExtractor(HTMLParser):
     """Extract download links from HTML email content"""
@@ -52,8 +45,8 @@ class LinkExtractor(HTMLParser):
 class KindleToObsidian:
     def __init__(self, vault_path):
         self.vault_path = Path(vault_path)
-        self.default_output_path = self.vault_path / OUTPUT_FOLDER
-        self.default_output_path.mkdir(parents=True, exist_ok=True)
+        self.output_path = self.vault_path / OUTPUT_FOLDER
+        self.output_path.mkdir(parents=True, exist_ok=True)
         self.processed_file = self.vault_path / PROCESSED_EMAILS_FILE
         self.gmail_service = None
         
@@ -218,31 +211,16 @@ class KindleToObsidian:
             if len(chunk) > 10:
                 title = None
                 content = chunk
-                folder = None
                 
-                # Check for folder routing (#personal, #fiction, or Folder: X)
-                folder_tag_match = re.match(r'^#(\w+)\s*\n', chunk, re.IGNORECASE)
-                if folder_tag_match:
-                    folder_key = folder_tag_match.group(1).lower()
-                    folder = FOLDER_SHORTCUTS.get(folder_key, folder_key)
-                    content = re.sub(r'^#\w+\s*\n', '', chunk).strip()
-                
-                folder_prefix_match = re.match(r'^Folder:\s*(.+?)(?:\n|$)', content, re.IGNORECASE)
-                if folder_prefix_match:
-                    folder = folder_prefix_match.group(1).strip()
-                    content = re.sub(r'^Folder:\s*.+?(?:\n|$)', '', content, flags=re.IGNORECASE).strip()
-                
-                # Extract title
-                title_match = re.match(r'^Title:\s*(.+?)(?:\n|$)', content, re.IGNORECASE)
+                title_match = re.match(r'^Title:\s*(.+?)(?:\n|$)', chunk, re.IGNORECASE)
                 if title_match:
                     title = title_match.group(1).strip()
-                    content = re.sub(r'^Title:\s*.+?(?:\n|$)', '', content, flags=re.IGNORECASE).strip()
+                    content = re.sub(r'^Title:\s*.+?(?:\n|$)', '', chunk, flags=re.IGNORECASE).strip()
                 
                 if not title:
                     first_line = content.split('\n')[0]
                     title = first_line[:50] if len(first_line) > 50 else first_line
                 
-                # Clean up line breaks
                 lines = content.split('\n')
                 cleaned_lines = []
                 
@@ -252,125 +230,7 @@ class KindleToObsidian:
                         cleaned_lines.append('')
                         continue
                     
-                    ends_with_punct = bool(re.search(r'[.!?:;,]
-    
-    def create_obsidian_note(self, note_data):
-        """Create individual Obsidian markdown note"""
-        title = note_data['title']
-        content = note_data['content']
-        folder = note_data.get('folder')
-        
-        # Determine output folder
-        if folder:
-            output_path = self.vault_path / folder
-            output_path.mkdir(parents=True, exist_ok=True)
-        else:
-            output_path = self.default_output_path
-        
-        title_clean = re.sub(r'[^\w\s-]', '', title)
-        title_clean = re.sub(r'\s+', ' ', title_clean).strip()
-        
-        if not title_clean:
-            title_clean = f"Note {note_data['index']}"
-        
-        filename = f"{title_clean}.md"
-        filepath = output_path / filename
-        
-        counter = 1
-        while filepath.exists():
-            filename = f"{title_clean} {counter}.md"
-            filepath = output_path / filename
-            counter += 1
-        
-        note_content = content
-        filepath.write_text(note_content, encoding='utf-8')
-        return filepath
-    
-    def process_email(self, message):
-        """Process a single email"""
-        message_id = message['id']
-        print(f"\nProcessing email: {message_id}")
-        
-        content = self.get_email_content(message_id)
-        
-        if content['type'] == 'none':
-            print(f"  ✗ No PDF attachment or download link found")
-            self.mark_email_processed(message_id)
-            return
-        
-        text = ""
-        
-        if content['type'] == 'pdf':
-            print(f"  ✓ Found PDF attachment: {content['filename']}")
-            text = self.extract_text_from_pdf(content['data'])
-        
-        elif content['type'] == 'link':
-            print(f"  ✓ Found {len(content['links'])} download link(s)")
-            for link in content['links']:
-                print(f"    - Downloading from link...")
-                file_data = self.download_from_link(link)
-                
-                if file_data:
-                    if link.endswith('.txt') or b'<!DOCTYPE' not in file_data[:1000]:
-                        try:
-                            decoded_text = file_data.decode('utf-8', errors='ignore')
-                            text += decoded_text + "\n"
-                            print(f"    - Extracted text: {len(decoded_text)} chars")
-                        except Exception as e:
-                            print(f"    - Text decode error: {e}")
-                    elif link.endswith('.pdf') or b'%PDF' in file_data[:10]:
-                        extracted = self.extract_text_from_pdf(file_data)
-                        text += extracted + "\n"
-                        print(f"    - Extracted PDF text")
-                else:
-                    print(f"    - Download failed or returned no data")
-        
-        if not text.strip():
-            print(f"  ✗ No text content extracted")
-            self.mark_email_processed(message_id)
-            return
-        
-        print(f"  ✓ Total extracted: {len(text)} characters")
-        
-        notes = self.parse_highlights_and_notes(text, content['subject'])
-        print(f"  ✓ Found {len(notes)} notes/highlights")
-        
-        created_count = 0
-        for note in notes:
-            try:
-                filepath = self.create_obsidian_note(note)
-                created_count += 1
-            except Exception as e:
-                print(f"  ✗ Error creating note: {e}")
-        
-        print(f"  ✓ Created {created_count} Obsidian notes")
-        self.mark_email_processed(message_id)
-    
-    def run(self):
-        """Main execution"""
-        print("=== Kindle Scribe to Obsidian Sync ===\n")
-        
-        self.authenticate_gmail()
-        messages = self.search_kindle_emails()
-        
-        if not messages:
-            print("\n✓ No new Kindle emails to process")
-            return
-        
-        for message in messages:
-            try:
-                self.process_email(message)
-            except Exception as e:
-                print(f"✗ Error processing email {message['id']}: {e}")
-                import traceback
-                traceback.print_exc()
-        
-        print("\n✓ Sync complete!")
-
-if __name__ == "__main__":
-    sync = KindleToObsidian(OBSIDIAN_VAULT_PATH)
-    sync.run()
-, line))
+                    ends_with_punct = bool(re.search(r'[.!?:;,]$', line))
                     is_last = j == len(lines) - 1
                     
                     if not ends_with_punct and not is_last:
@@ -386,7 +246,6 @@ if __name__ == "__main__":
                 notes.append({
                     'title': title,
                     'content': content,
-                    'folder': folder,
                     'source': source_title,
                     'index': i + 1
                 })
