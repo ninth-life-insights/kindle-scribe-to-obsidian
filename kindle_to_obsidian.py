@@ -156,11 +156,18 @@ class KindleToObsidian:
                 if page_text and page_text.strip():
                     text += page_text + "\n"
             print(f"    - Extracted {len(text)} chars")
+            
+            # Check if extracted text is garbage (too many non-ASCII characters)
+            if text:
+                ascii_ratio = sum(c.isascii() and (c.isalnum() or c.isspace() or c in '.,!?;:-') for c in text) / len(text)
+                if ascii_ratio < 0.7:
+                    print(f"    - Text appears corrupted (only {ascii_ratio:.0%} readable), trying OCR instead")
+                    text = ""
         except Exception as e:
             print(f"    - Extraction failed: {e}")
         
         if len(text.strip()) < 100:
-            print(f"    - Attempting OCR...")
+            print(f"    - Low/no text content, attempting OCR...")
             try:
                 images = convert_from_bytes(pdf_data)
                 ocr_text = ""
@@ -168,9 +175,10 @@ class KindleToObsidian:
                     page_text = pytesseract.image_to_string(image)
                     if page_text.strip():
                         ocr_text += page_text + "\n"
+                    print(f"      Page {i+1}: {len(page_text)} chars")
                 if len(ocr_text) > len(text):
                     text = ocr_text
-                    print(f"    - OCR: {len(text)} chars")
+                    print(f"    - OCR extracted {len(text)} chars total")
             except Exception as e:
                 print(f"    - OCR failed: {e}")
         return text
